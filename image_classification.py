@@ -1,9 +1,11 @@
-from tensorflow import keras
-
-from tensorflow.keras.utils import HDF5Matrix
-import numpy as np
 import h5py
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from PIL import Image
 
+
+# from tensorflow.keras.utils import HDF5Matrix
 
 def extract():
     dataset = h5py.File('./dataset_concat.hdf5', 'w')
@@ -23,26 +25,40 @@ def extract():
             print(key)
         x_data = np.vstack((x_stack_list_1, x_stack_list_2))
         y_data_1.extend(y_data_2)
-        group.create_dataset(name='images', data= x_data)
-        group.create_dataset(name='labels', data= y_data_1)
+        group.create_dataset(name='images', data=x_data)
+        group.create_dataset(name='labels', data=y_data_1)
         dataset['/1/images']
         print(1)
 
+
 if __name__ == '__main__':
-    extract()
-    # dataset = h5py.File('./dataset_concat_1.hdf5', 'r')
-    # dataset.keys()
-    # dd = dataset['/labels']
-    # print(1)
-    # x_train = dataset['/images_1/'][:][800]
-    # y_train = HDF5Matrix('./dataset_concat_1.hdf5', 'labels_1', end=800)
-    # x_test = HDF5Matrix('./dataset_concat_1.hdf5', 'images_1', start=800)
-    # y_test = HDF5Matrix('./dataset_concat_1.hdf5', 'labels_1', start=800)
+    # mnist = tf.keras.datasets.mnist
     #
-    # model = keras.Sequential([
-    #     keras.layers.Dense(128, activation='relu'),
-    #     keras.layers.Dense(4, activation='softmax')
-    # ])
+    # (x_train, y_train), (x_test, y_test) = mnist.load_data()
+    # x_train, x_test = x_train / 255.0, x_test / 255.0
+    # extract()
+    dataset = h5py.File('dataset_new_.hdf5', 'r')
+    end_split = int(np.round(dataset['images'].shape[0] * 0.8, 0))
+    x_train = dataset['images'][:][:end_split]
+    y_train = dataset['labels'][:][:end_split]
+    x_test = dataset['images'][:][end_split:]
+    y_test = dataset['labels'][:][end_split:]
+    x_test_2 = x_test[5]
+    y_labels = y_test[5]
+    # img = Image.fromarray(x_test_2, 'RGB')
+    # img.show()
+    train_ds = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(1000).batch(16)
+    test_ds = tf.data.Dataset.from_tensor_slices((x_test, y_test)).batch(16)
+
+    model = keras.Sequential([
+        keras.layers.Flatten(input_shape=(140, 148, 3)),
+        keras.layers.Dense(256, activation='relu'),
+        keras.layers.Dense(5, activation='softmax')
+    ])
     #
-    # model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-    # model.fit(x_train, y_train, epochs=5)
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    model.fit(train_ds, epochs=10)
+
+    model.evaluate(test_ds, verbose=2)
+    print('predict : ', str(np.argmax(model.predict(x=x_test_2.reshape([1, 140, 148, 3])))), 'real : ' + str(y_labels))
+    model.save('auto_sword.h5')
